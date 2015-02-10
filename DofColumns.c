@@ -895,7 +895,8 @@ static PetscErrorCode PCGAMGRegister_DofCol (void)
 {
   PetscErrorCode ierr;
   PetscFunctionBeginUser;
-  ierr = PCGAMGRegister (PCGAMGDOFCOL, PCGAMGCreate_DofCol);CHKERRQ(ierr);
+  ierr = DofColumnsInitializePackage();CHKERRQ(ierr);
+  ierr = PCGAMGRegister(PCGAMGDOFCOL, PCGAMGCreate_DofCol);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -906,17 +907,20 @@ PetscErrorCode MatSetDofColumns(Mat A, PetscSection columns)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  ierr = DofColumnsInitializePackage();CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject)A,"DofColumns",(PetscObject)columns);CHKERRQ(ierr);
 #if defined(PETSC_USE_DEBUG)
   {
     PetscLayout layout;
     PetscInt    pStart, pEnd, vStart, vEnd, n, off;
+    PetscInt    bs;
 
     ierr = MatGetLayouts(A,&layout,NULL);CHKERRQ(ierr);
+    ierr = MatGetBlockSize(A,&bs);CHKERRQ(ierr);
     ierr = PetscSectionGetChart(columns,&pStart,&pEnd);CHKERRQ(ierr);
     ierr = PetscSectionGetOffsetRange(columns,&vStart,&vEnd);CHKERRQ(ierr);
-    if ((pEnd > pStart) && (vStart != layout->rstart || vEnd != layout->rend);CHKERRQ(ierr)) {
-      SETERRQ4(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Expected the column section offset range to be [%d, %d), got [%d, %d)",layout->rstart,layout->rend,vStart,vEnd);
+    if ((pEnd > pStart) && (vStart != layout->rstart/bs || vEnd != layout->rend/bs)) {
+      SETERRQ4(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Expected the column section offset range to be [%d, %d), got [%d, %d)",layout->rstart/bs,layout->rend/bs,vStart,vEnd);
     }
     n    = pEnd - pStart;
     ierr = MPI_Scan(&n,&off,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)columns));CHKERRQ(ierr);
@@ -937,6 +941,7 @@ PetscErrorCode MatGetDofColumns(Mat A, PetscSection *columns)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  ierr = DofColumnsInitializePackage();CHKERRQ(ierr);
   ierr = PetscObjectQuery((PetscObject)A,"DofColumns",&obj);CHKERRQ(ierr);
   *columns = (PetscSection) obj;
   PetscFunctionReturn(0);
