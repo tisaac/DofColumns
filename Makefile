@@ -78,16 +78,55 @@ print:
 	@touch $@
 
 clean:
-	rm -rf $(OBJDIR) $(LIBDIR)
+	rm -rf $(OBJDIR) $(LIBDIR) examples/ex56anisotropic examples/ex56anisotropic.o
 
 install:
 	./install.py --prefix=$(DESTDIR)
 
 test:
-	$(PETSC_COMPILE) -I./ examples/ex56anisotropic.c -o examples/ex56anisotropic.o && \
-	$(CLINKER) -o examples/ex56anisotropic examples/ex56anisotropic.o $(LDLIBS) $(DOFCOLUMNS_LIB)
+	@$(PETSC_COMPILE) -I./ examples/ex56anisotropic.c -o examples/ex56anisotropic.o && \
+		$(CLINKER) -o examples/ex56anisotropic examples/ex56anisotropic.o $(LDLIBS) $(DOFCOLUMNS_LIB)
 
-.PHONY: all clean print libdofcolumns install test
+MPI_N = 9
+
+test_args = -pc_type gamg -use_mat_nearnullspace -ksp_converged_reason -ksp_rtol 1.e-10 \
+						-mg_coarse_ksp_type preonly -mg_levels_ksp_type chebyshev \
+						-mg_levels_ksp_chebyshev_estimate_eigenvalues \
+						-mg_levels_ksp_chebyshev_estimate_eigenvalues_random \
+						-mg_levels_pc_type bjacobi
+run_test  = $(MPIEXEC) -n $(MPI_N) examples/ex56anisotropic $(test_args)
+
+test_sor: test
+	$(run_test) -ne 11 -mg_levels_sub_pc_type sor -epsilon 1.0
+	$(run_test) -ne 11 -mg_levels_sub_pc_type sor -epsilon 0.1
+	$(run_test) -ne 11 -mg_levels_sub_pc_type sor -epsilon 0.01
+
+test_icc: test
+	$(run_test) -ne 11 -mg_levels_sub_pc_type icc -epsilon 1.0
+	$(run_test) -ne 11 -mg_levels_sub_pc_type icc -epsilon 0.1
+	$(run_test) -ne 11 -mg_levels_sub_pc_type icc -epsilon 0.01
+
+test_h: test
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 11
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 23
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 47
+
+test_h_dofcol: test
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 11 -pc_gamg_type dofcol
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 23 -pc_gamg_type dofcol
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 47 -pc_gamg_type dofcol
+
+test_h_weak: test
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 8  -beta 0.01
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 17 -beta 0.01
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 35 -beta 0.01
+
+test_h_weak_dofcol: test
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 8  -beta 0.01 -pc_gamg_type dofcol
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 17 -beta 0.01 -pc_gamg_type dofcol
+	$(run_test) -mg_levels_sub_pc_type icc -epsilon 0.01 -ne 35 -beta 0.01 -pc_gamg_type dofcol
+
+.PHONY: all clean print libdofcolumns install test test_sor test_icc test_h test_h_dofcol
 
 .PRECIOUS: %/.DIR
 
