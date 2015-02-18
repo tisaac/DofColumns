@@ -18,7 +18,7 @@ int main(int argc,char **args)
   Mat            Amat;
   PetscErrorCode ierr;
   PetscInt       m,nn,M,Istart,Iend,i,j,k,ii,jj,kk,ic,ne=4,id;
-  PetscReal      x,y,z,h,*coords,soft_alpha=1.e-3,epsilon=1.0;
+  PetscReal      x,y,z,h,*coords,soft_alpha=1.e0,epsilon=1.0;
   PetscBool      two_solves=PETSC_FALSE,test_nonzero_cols=PETSC_FALSE,use_nearnullspace=PETSC_FALSE;
   Vec            xx,bb;
   KSP            ksp;
