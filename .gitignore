@@ -1,0 +1,5 @@
+
+build/
+arch-*/
+examples/ex56anisotropic
+examples/ex56anisotropic.o
