@@ -43,6 +43,50 @@ static PC_GAMG *PCGAMGDofColGetSubGAMG(PC_GAMG_DofCol *dofcol)
   return (PC_GAMG *) mg->innerctx;
 }
 
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGDofColGiveSubGAMGData"
+static PetscErrorCode PCGAMGDofColGiveSubGAMGData(PC pc)
+{
+  PC_GAMG_DofCol *dofcol;
+  PC_GAMG        *gamg, *subgamg;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
+  gamg    = (PC_GAMG *) ((PC_MG *) pc->data)->innerctx;
+  subgamg = (PC_GAMG *) ((PC_MG *) dofcol->columnPC->data)->innerctx;
+
+  subgamg->data = gamg->data;
+  gamg->data    = NULL;
+
+  subgamg->data_cell_cols = gamg->data_cell_cols;
+  subgamg->data_cell_rows = gamg->data_cell_rows;
+  subgamg->data_sz        = gamg->data_sz;
+  PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
+#define __FUNCT__ "PCGAMGDofColTakeSubGAMGData"
+static PetscErrorCode PCGAMGDofColTakeSubGAMGData(PC pc)
+{
+  PC_GAMG_DofCol *dofcol;
+  PC_GAMG        *gamg, *subgamg;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
+  gamg    = (PC_GAMG *) ((PC_MG *) pc->data)->innerctx;
+  subgamg = (PC_GAMG *) ((PC_MG *) dofcol->columnPC->data)->innerctx;
+
+  gamg->data    = subgamg->data;
+  subgamg->data = NULL;
+
+  gamg->data_cell_cols = subgamg->data_cell_cols;
+  gamg->data_cell_rows = subgamg->data_cell_rows;
+  gamg->data_sz        = subgamg->data_sz;
+  PetscFunctionReturn(0);
+}
+
 /* given a PetscSection, compute a prolongator matrix from points to dofs
  * with a value of 1. for every (dof,point) entry.
  */
@@ -103,7 +147,9 @@ PetscErrorCode PCGAMGGraph_DofCol(PC pc,const Mat Amat,Mat *a_Gmat)
   ierr    = PetscObjectQuery((PetscObject)Amat,"DofColumns",&columns_obj);CHKERRQ(ierr);
   if (!columns_obj) SETERRQ(PetscObjectComm((PetscObject)Amat),PETSC_ERR_ARG_WRONG,"Dof columns not set: call MatSetDofColumns() on the system matrix.");
   columns = (PetscSection) columns_obj;
+  ierr    = PCGAMGDofColGiveSubGAMGData(pc);
   ierr    = subgamg->ops->graph(dofcol->columnPC,Amat,&fullGmat);CHKERRQ(ierr);
+  ierr    = PCGAMGDofColTakeSubGAMGData(pc);
   ierr    = PetscSectionGetDofProlongator(columns,&colProl);CHKERRQ(ierr);
   ierr    = MatPtAP(fullGmat,colProl,MAT_INITIAL_MATRIX,1.,a_Gmat);CHKERRQ(ierr);
   ierr    = PetscObjectCompose((PetscObject)(*a_Gmat),"DofColumns",(PetscObject)columns);CHKERRQ(ierr);
@@ -510,7 +556,9 @@ PetscErrorCode PCGAMGCoarsen_DofCol(PC pc,Mat *Gmat,PetscCoarsenData **agg_lists
   }
   ierr = PetscObjectCompose((PetscObject)(*Gmat),"DofColumns_fullGmat",NULL);CHKERRQ(ierr);
   subgamg->firstCoarsen = ((PC_GAMG *) ((PC_MG *) pc->data)->innerctx)->firstCoarsen;
+  ierr = PCGAMGDofColGiveSubGAMGData(pc);
   ierr = subgamg->ops->coarsen(dofcol->columnPC,Gmat,&sub_agg_lists);CHKERRQ(ierr); /* get the flattened aggs and modified flattened adjacency matrix*/
+  ierr = PCGAMGDofColTakeSubGAMGData(pc);
   /* convert the flattened aggs to local numbering; get a version of the
    * dofGmat that only includes adjacencies within aggregate columns in
    * localized order; get the section describing the local ordering of
@@ -593,7 +641,9 @@ PetscErrorCode PCGAMGProlongator_DofCol(PC pc,const Mat Amat,const Mat Gmat,Pets
   PetscValidHeaderSpecific(Gmat,MAT_CLASSID,3);
   ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
   subgamg = PCGAMGDofColGetSubGAMG(dofcol);
+  ierr    = PCGAMGDofColGiveSubGAMGData(pc);
   ierr    = subgamg->ops->prolongator(dofcol->columnPC,Amat,Gmat,agg_lists,P);CHKERRQ(ierr);
+  ierr    = PCGAMGDofColTakeSubGAMGData(pc);
   PetscFunctionReturn(0);
 }
 
@@ -611,7 +661,9 @@ PetscErrorCode PCGAMGOptprol_DofCol(PC pc,const Mat Amat,Mat *P)
   PetscValidHeaderSpecific(Amat,MAT_CLASSID,2);
   ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
   subgamg = PCGAMGDofColGetSubGAMG(dofcol);
+  ierr    = PCGAMGDofColGiveSubGAMGData(pc);
   ierr    = subgamg->ops->optprol(dofcol->columnPC,Amat,P);CHKERRQ(ierr);
+  ierr    = PCGAMGDofColTakeSubGAMGData(pc);
   PetscFunctionReturn(0);
 }
 
@@ -629,7 +681,9 @@ PetscErrorCode PCGAMGCreateDefaultData_DofCol(PC pc,const Mat Amat)
   PetscValidHeaderSpecific(Amat,MAT_CLASSID,2);
   ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
   subgamg = PCGAMGDofColGetSubGAMG(dofcol);
+  ierr    = PCGAMGDofColGiveSubGAMGData(pc);
   ierr    = subgamg->ops->createdefaultdata(dofcol->columnPC,Amat);CHKERRQ(ierr);
+  ierr    = PCGAMGDofColTakeSubGAMGData(pc);
   PetscFunctionReturn(0);
 }
 
@@ -659,7 +713,9 @@ PetscErrorCode PCGAMGCreateLevel_DofCol(PC pc,Mat Amat_fine,PetscInt cr_bs,Mat *
   ierr    = PetscObjectCompose((PetscObject)columns,"DofColumns_coarse",NULL);CHKERRQ(ierr);
   ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
   subgamg = PCGAMGDofColGetSubGAMG(dofcol);
+  ierr    = PCGAMGDofColGiveSubGAMGData(pc);
   ierr    = subgamg->ops->createlevel(dofcol->columnPC,Amat_fine,cr_bs,a_P_inout,a_Mat_crs,a_nactive_proc,&perm);CHKERRQ(ierr);
+  ierr    = PCGAMGDofColTakeSubGAMGData(pc);
   if (Pcolumnperm) {
     ierr = PetscObjectReference((PetscObject)perm);CHKERRQ(ierr);
     *Pcolumnperm = perm;
