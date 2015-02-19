@@ -218,6 +218,7 @@ static PetscErrorCode PCGAMGDofColGetLocalSection(PC pc,PetscSection columns,Mat
   ierr = MatGetLayouts(Gmat,&layout,NULL);CHKERRQ(ierr);
   ierr = PetscSFCreate(comm,&colSF);CHKERRQ(ierr);
   ierr = PetscSFSetGraphLayout(colSF,layout,nloc,NULL,PETSC_OWN_POINTER,globalCols);CHKERRQ(ierr);
+  ierr = PetscFree(globalCols);CHKERRQ(ierr);
   ierr = MPI_Type_contiguous(2,MPIU_INT,&doubleInt);CHKERRQ(ierr);
   ierr = MPI_Type_commit(&doubleInt);CHKERRQ(ierr);
   ierr = PetscSFReduceBegin(colSF,doubleInt,gColToAggNew,gColToAggOld,MPI_REPLACE);CHKERRQ(ierr);
