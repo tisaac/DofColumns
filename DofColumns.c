@@ -1,9 +1,9 @@
 #include "DofColumns.h"
 #include <petscsf.h>
 #include <petscmat.h>
-#include <petsc-private/matimpl.h>
+#include <petsc/private/matimpl.h>
 #include <petscpc.h>
-#include <petsc-private/pcgamgimpl.h>
+#include <petsc/private/pcgamgimpl.h>
 
 PCGAMGType PCGAMGDOFCOL = "dofcol";
 
@@ -556,7 +556,7 @@ PetscErrorCode PCGAMGCoarsen_DofCol(PC pc,Mat *Gmat,PetscCoarsenData **agg_lists
     ierr = PetscCDCreate(glayout->n,&agg3);CHKERRQ(ierr);
   }
   ierr = PetscObjectCompose((PetscObject)(*Gmat),"DofColumns_fullGmat",NULL);CHKERRQ(ierr);
-  subgamg->firstCoarsen = ((PC_GAMG *) ((PC_MG *) pc->data)->innerctx)->firstCoarsen;
+  subgamg->current_level = ((PC_GAMG *) ((PC_MG *) pc->data)->innerctx)->current_level;
   ierr = PCGAMGDofColGiveSubGAMGData(pc);
   ierr = subgamg->ops->coarsen(dofcol->columnPC,Gmat,&sub_agg_lists);CHKERRQ(ierr); /* get the flattened aggs and modified flattened adjacency matrix*/
   ierr = PCGAMGDofColTakeSubGAMGData(pc);
@@ -663,7 +663,7 @@ PetscErrorCode PCGAMGOptprol_DofCol(PC pc,const Mat Amat,Mat *P)
   ierr    = PCGAMGGetDofCol(pc,&dofcol);CHKERRQ(ierr);
   subgamg = PCGAMGDofColGetSubGAMG(dofcol);
   ierr    = PCGAMGDofColGiveSubGAMGData(pc);
-  ierr    = subgamg->ops->optprol(dofcol->columnPC,Amat,P);CHKERRQ(ierr);
+  ierr    = subgamg->ops->optprolongator(dofcol->columnPC,Amat,P);CHKERRQ(ierr);
   ierr    = PCGAMGDofColTakeSubGAMGData(pc);
   PetscFunctionReturn(0);
 }
@@ -936,12 +936,12 @@ PetscErrorCode PCGAMGCreate_DofCol(PC pc)
   /* reset does not do anything; setup not virtual */
 
   /* set internal function pointers */
-  pc_gamg->ops->graph       = PCGAMGGraph_DofCol;
-  pc_gamg->ops->coarsen     = PCGAMGCoarsen_DofCol;
-  pc_gamg->ops->prolongator = PCGAMGProlongator_DofCol;
-  pc_gamg->ops->optprol     = PCGAMGOptprol_DofCol;
+  pc_gamg->ops->graph             = PCGAMGGraph_DofCol;
+  pc_gamg->ops->coarsen           = PCGAMGCoarsen_DofCol;
+  pc_gamg->ops->prolongator       = PCGAMGProlongator_DofCol;
+  pc_gamg->ops->optprolongator    = PCGAMGOptprol_DofCol;
   pc_gamg->ops->createdefaultdata = PCGAMGCreateDefaultData_DofCol;
-  pc_gamg->ops->createlevel = PCGAMGCreateLevel_DofCol;
+  pc_gamg->ops->createlevel       = PCGAMGCreateLevel_DofCol;
 
   PetscFunctionReturn(0);
 }

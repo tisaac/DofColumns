@@ -13,7 +13,7 @@ libdofcolumns.c := DofColumns.c
 libdofcolumns.o := $(patsubst %.c,$(OBJDIR)/%.o,$(libdofcolumns.c))
 libdofcolumns.h := DofColumns.h
 
-include $(PETSC_DIR)/lib/petsc-conf/variables
+include $(PETSC_DIR)/lib/petsc/conf/variables
 
 # $(call SONAME_FUNCTION,libfoo,abiversion)
 SONAME_FUNCTION ?= $(1).$(SL_LINKER_SUFFIX).$(2)

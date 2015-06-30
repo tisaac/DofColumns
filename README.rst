@@ -9,8 +9,8 @@ DofColumns: PETSc plugin for column-organized discretizations in PCGAMG
 Building
 --------
 
-This package uses (as of February 2015) a `development version of PETSc`_, whic
-can be obtained from `bitbucket`_.
+This package uses (as of June 2015) `PETSc 3.6`_, which can be obtained from
+`bitbucket`_.
 
 .. _development version of PETSc: http://www.mcs.anl.gov/research/projects/petsc/developers/index.html#obtaining
 
@@ -200,6 +200,6 @@ and
 
 In my tests using the default SA-AMG aggregation, the problems are solved in
 16, 38, and 77 iterations, respectively; using the DofColumns aggregation, the
-problems are solved in 12, 16, and 21 iterations.
+problems are solved in 12, 16, and 20 iterations.
 
 
