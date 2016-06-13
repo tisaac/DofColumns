@@ -134,9 +134,6 @@ PetscErrorCode PCGAMGGraph_DofCol(PC pc,const Mat Amat,Mat *a_Gmat)
   PC_GAMG_DofCol *dofcol;
   PC_GAMG        *subgamg;
   PetscObject    columns_obj;
-  PetscSection   columns;
-  Mat            fullGmat;
-  Mat            colProl;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -146,16 +143,10 @@ PetscErrorCode PCGAMGGraph_DofCol(PC pc,const Mat Amat,Mat *a_Gmat)
   subgamg = PCGAMGDofColGetSubGAMG(dofcol);
   ierr    = PetscObjectQuery((PetscObject)Amat,"DofColumns",&columns_obj);CHKERRQ(ierr);
   if (!columns_obj) SETERRQ(PetscObjectComm((PetscObject)Amat),PETSC_ERR_ARG_WRONG,"Dof columns not set: call MatSetDofColumns() on the system matrix.");
-  columns = (PetscSection) columns_obj;
   ierr    = PCGAMGDofColGiveSubGAMGData(pc);
-  ierr    = subgamg->ops->graph(dofcol->columnPC,Amat,&fullGmat);CHKERRQ(ierr);
+  ierr    = subgamg->ops->graph(dofcol->columnPC,Amat,a_Gmat);CHKERRQ(ierr);
   ierr    = PCGAMGDofColTakeSubGAMGData(pc);
-  ierr    = PetscSectionGetDofProlongator(columns,&colProl);CHKERRQ(ierr);
-  ierr    = MatPtAP(fullGmat,colProl,MAT_INITIAL_MATRIX,1.,a_Gmat);CHKERRQ(ierr);
-  ierr    = PetscObjectCompose((PetscObject)(*a_Gmat),"DofColumns",(PetscObject)columns);CHKERRQ(ierr);
-  ierr    = PetscObjectCompose((PetscObject)(*a_Gmat),"DofColumns_fullGmat",(PetscObject)fullGmat);CHKERRQ(ierr);
-  ierr    = MatDestroy(&fullGmat);CHKERRQ(ierr);
-  ierr    = MatDestroy(&colProl);CHKERRQ(ierr);
+  ierr    = PetscObjectCompose((PetscObject)(*a_Gmat),"DofColumns",columns_obj);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -533,10 +524,11 @@ PetscErrorCode PCGAMGCoarsen_DofCol(PC pc,Mat *Gmat,PetscCoarsenData **agg_lists
   PC_GAMG_DofCol *dofcol;
   PC_GAMG        *subgamg;
   PetscCoarsenData *sub_agg_lists, *agg3, *agg3_local;
-  PetscObject    columns_obj, dofGmat_obj;
+  PetscObject    columns_obj;
   PetscSection   columns, columnsLocal, coarseColumns;
   IS             dofPerm;
-  Mat            dofGmat;
+  Mat            colGmat, colProl;
+  PetscInt       nLocal;
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
@@ -546,38 +538,31 @@ PetscErrorCode PCGAMGCoarsen_DofCol(PC pc,Mat *Gmat,PetscCoarsenData **agg_lists
   ierr    = PetscObjectQuery((PetscObject)(*Gmat),"DofColumns",&columns_obj);CHKERRQ(ierr);
   if (!columns_obj) SETERRQ(PetscObjectComm((PetscObject)Gmat),PETSC_ERR_ARG_WRONGSTATE,"Could not get the dof columns from the adjacency matrix");
   columns = (PetscSection) columns_obj;
-  ierr    = PetscObjectQuery((PetscObject)(*Gmat),"DofColumns_fullGmat",&dofGmat_obj);CHKERRQ(ierr);
-  dofGmat = (Mat) dofGmat_obj;
-  ierr    = PetscObjectReference((PetscObject)dofGmat);CHKERRQ(ierr);
+  ierr    = PetscSectionGetDofProlongator(columns,&colProl);CHKERRQ(ierr);
+  ierr    = MatPtAP(*Gmat,colProl,MAT_INITIAL_MATRIX,1.,&colGmat);CHKERRQ(ierr);
+  ierr    = MatDestroy(&colProl);CHKERRQ(ierr);
   {
     PetscLayout glayout;
 
-    ierr = MatGetLayouts(dofGmat,&glayout,NULL);CHKERRQ(ierr);
+    ierr = MatGetLayouts(*Gmat,&glayout,NULL);CHKERRQ(ierr);
     ierr = PetscCDCreate(glayout->n,&agg3);CHKERRQ(ierr);
   }
-  ierr = PetscObjectCompose((PetscObject)(*Gmat),"DofColumns_fullGmat",NULL);CHKERRQ(ierr);
   subgamg->current_level = ((PC_GAMG *) ((PC_MG *) pc->data)->innerctx)->current_level;
   ierr = PCGAMGDofColGiveSubGAMGData(pc);
-  ierr = subgamg->ops->coarsen(dofcol->columnPC,Gmat,&sub_agg_lists);CHKERRQ(ierr); /* get the flattened aggs and modified flattened adjacency matrix*/
+  ierr = subgamg->ops->coarsen(dofcol->columnPC,&colGmat,&sub_agg_lists);CHKERRQ(ierr); /* get the flattened aggs and modified flattened adjacency matrix*/
   ierr = PCGAMGDofColTakeSubGAMGData(pc);
   /* convert the flattened aggs to local numbering; get a version of the
    * dofGmat that only includes adjacencies within aggregate columns in
    * localized order; get the section describing the local ordering of
    * columns, and a permutation from the localized dofs to the original global
    * dofs */
-  ierr = PCGAMGDofColGetLocalSection(pc,columns,*Gmat,dofGmat,sub_agg_lists,&columnsLocal,&dofPerm);CHKERRQ(ierr);
-  {
-    PetscInt    nLocal;
-    Mat colGmat = *Gmat;
-
-    ierr  = MatDestroy(&colGmat);CHKERRQ(ierr); /* we don't need the flatted adjacency any more */
-    ierr  = ISGetLocalSize(dofPerm,&nLocal);CHKERRQ(ierr);
-    ierr  = PetscCDCreate(nLocal,&agg3_local);CHKERRQ(ierr); /* first calculate localized aggs, then convert to globalized aggs */
-  }
-  ierr = PCGAMGAggSectionGetFullAggs(pc,sub_agg_lists,columnsLocal,agg3_local,&dofGmat,&coarseColumns,dofPerm);CHKERRQ(ierr);
+  ierr = PCGAMGDofColGetLocalSection(pc,columns,colGmat,*Gmat,sub_agg_lists,&columnsLocal,&dofPerm);CHKERRQ(ierr);
+  ierr = MatDestroy(&colGmat);CHKERRQ(ierr); /* we don't need the flatted adjacency any more */
+  ierr = ISGetLocalSize(dofPerm,&nLocal);CHKERRQ(ierr);
+  ierr = PetscCDCreate(nLocal,&agg3_local);CHKERRQ(ierr); /* first calculate localized aggs, then convert to globalized aggs */
+  ierr = PCGAMGAggSectionGetFullAggs(pc,sub_agg_lists,columnsLocal,agg3_local,Gmat,&coarseColumns,dofPerm);CHKERRQ(ierr);
   ierr = PetscObjectCompose((PetscObject)columns,"DofColumns_coarse",(PetscObject)coarseColumns);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&coarseColumns);CHKERRQ(ierr);
-  *Gmat = dofGmat;
   { /* convert agg3_local to agg3 */
     PetscInt vStart, vEnd;
     PetscInt vStartOld, vEndOld;
