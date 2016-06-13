@@ -91,8 +91,8 @@ MPI_N = 9
 
 test_args = -pc_type gamg -use_mat_nearnullspace -ksp_converged_reason -ksp_rtol 1.e-10 \
 						-mg_coarse_ksp_type preonly -mg_levels_ksp_type chebyshev \
-						-mg_levels_ksp_chebyshev_estimate_eigenvalues \
-						-mg_levels_ksp_chebyshev_estimate_eigenvalues_random \
+						-mg_levels_ksp_chebyshev_esteig \
+						-mg_levels_ksp_chebyshev_esteig_random \
 						-mg_levels_pc_type bjacobi
 run_test  = $(MPIEXEC) -n $(MPI_N) examples/ex56anisotropic $(test_args)
 

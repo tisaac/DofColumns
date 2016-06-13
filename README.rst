@@ -9,9 +9,9 @@ DofColumns: PETSc plugin for column-organized discretizations in PCGAMG
 Building
 --------
 
-This package uses (as of June 2015) `PETSc 3.6`_, which can be obtained from `bitbucket`_.
+This package uses (as of June 2016) `PETSc 3.7`_, which can be obtained from `bitbucket`_.
 
-.. _PETSc 3.6: http://www.mcs.anl.gov/research/projects/petsc/developers/index.html#obtaining
+.. _PETSc 3.7: http://www.mcs.anl.gov/research/projects/petsc/developers/index.html#obtaining
 
 .. _bitbucket: http://bitbucket.org/petsc/petsc
 

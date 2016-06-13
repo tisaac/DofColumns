@@ -866,7 +866,7 @@ PetscErrorCode PCGAMGDofColSetColumnGAMGType(PC pc,PCGAMGType type)
 
 #undef __FUNCT__
 #define __FUNCT__ "PCGAMGSetFromOptions_DofCol"
-PetscErrorCode PCGAMGSetFromOptions_DofCol(PetscOptions *PetscOptionsObject,PC pc)
+PetscErrorCode PCGAMGSetFromOptions_DofCol(PetscOptionItems *PetscOptionsObject,PC pc)
 {
   const char     *prefix;
   PC_GAMG_DofCol *dofcol;
